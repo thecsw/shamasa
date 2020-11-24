@@ -16,14 +16,14 @@ finish = 100;
 iterations = (finish - start)/step;
 members = 10;
 % Change H to observe different relationships
-H = [1 0 0; 0 1 0; 0 0 1];
+H = [0 0 0; 0 1 0; 0 0 1];
 dim = width(H);
 observed = height(H);
 Gamma = 0.1;
 Xi = 0.1;
 Eta = 0.1;
 
-% hats
+% hatsx
 vhats = zeros(iterations, members, dim);
 mhats = zeros(iterations, dim);
 Chats = zeros(iterations, dim, dim);
@@ -36,6 +36,10 @@ yarr = zeros(iterations, members, observed);
 [traw, atrueraw] = ode45(f, start:step:finish, IC);
 currval = IC;
 araw = zeros(iterations, dim);
+
+% RMSE
+RMSE = 0;
+
 for val=1:iterations
     currval = onestep(f, step, currval);
     araw(val,:) = currval;
@@ -58,15 +62,15 @@ for j=1:iterations
         phi = onestep(f, step, initcon(n,:));
         vhats(j, n, :) = phi + mvnrnd(zeros(size(phi)), Xi*ones(1,dim));
     end
-    
+
     mhats(j, :) = sum(vhats(j,:,:))/members;
-    
+
     Csum = zeros(dim, dim);
     for n=1:members
         Csum = Csum + (squeeze(vhats(j,n,:)-mhats(j,:)))*(squeeze(vhats(j,n,:)-mhats(j,:)))';
     end
     Chats(j,:,:) = Csum / (members - 1);
-    
+
     % Analysis
     S(j,:,:) = H * squeeze(Chats(j, :, :)) * H' + Gamma;
     K(j,:,:) = squeeze(Chats(j, :, :)) * H' * pinv(squeeze(S(j,:,:)), 1e-8);
@@ -74,9 +78,14 @@ for j=1:iterations
         yarr(j,n,:) = (H * araw(j,:)')' + mvnrnd(zeros(1,observed), Eta * ones(1,observed));
         varr(j,n,:) = (eye(dim)-squeeze(K(j,:,:))*H) * squeeze(vhats(j,n,:)) + squeeze(K(j,:,:))*squeeze(yarr(j,n,:));
     end
-
     initcon = squeeze(varr(j,:,:));
 end
 
 %plot3(varr(:,1,1), varr(:,1,2), varr(:,1,3))
 plot3(mhats(:,1), mhats(:,2), mhats(:,3))
+
+for n=1:members
+    RMSE = RMSE + sqrt(mean((mean(mean(varr)) - mean(mean(vhats))).^2));
+end
+
+RMSE = RMSE / members;
